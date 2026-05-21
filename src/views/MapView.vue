@@ -155,7 +155,7 @@
         <!-- Overlays -->
         <CollapsibleSection title="Overlays" :open="sections.overlays" @toggle="sections.overlays = !sections.overlays">
           <label class="flex items-center gap-2.5 py-1 cursor-pointer group">
-            <Checkbox v-model="showHeatmap" @change="redraw" />
+            <Checkbox v-model="showHeatmap" @change="onToggleHeatmap" />
             <span class="text-xs text-stone-400 group-hover:text-stone-200 transition-colors">Cost Heatmap</span>
           </label>
           <label class="flex items-center gap-2.5 py-1 cursor-pointer group">
@@ -298,7 +298,14 @@ import { generateLandmarks } from '../engine/landmarks.js'
 import { randomSeed } from '../engine/rng.js'
 import { generateWorldName } from '../engine/worldname.js'
 import { analyseRoute } from '../engine/routestats.js'
-import { renderMap, renderHeatmap, renderLandmarks, renderMarkers, renderPath } from '../engine/renderer.js'
+import {
+  prerenderTerrain,
+  prerenderHeatmap,
+  prerenderLandmarks,
+  invalidateHeatmap,
+  invalidateLandmarks,
+  compositeFrame as rendererComposite,
+} from '../engine/renderer.js'
 
 // ── Micro-components ──────────────────────────────────────────────────────────
 
@@ -411,7 +418,7 @@ function startWaterAnimation() {
   function tick(now) {
     waterTime += now - last
     last = now
-    if (map && canvasRef.value) compositeFrame()
+    if (map && canvasRef.value) frame()
     waterAnimId = requestAnimationFrame(tick)
   }
   waterAnimId = requestAnimationFrame(tick)
@@ -421,17 +428,25 @@ function stopWaterAnimation() {
   if (waterAnimId) { cancelAnimationFrame(waterAnimId); waterAnimId = null }
 }
 
-function compositeFrame() {
+function frame() {
   const canvas = canvasRef.value
   if (!canvas || !map) return
-  renderMap(canvas, map, waterTime)
-  if (showHeatmap.value) renderHeatmap(canvas, map)
-  if (showLandmarks.value) renderLandmarks(canvas, map, landmarks.value)
-  if (drawnPath.length > 1) renderPath(canvas, map, drawnPath)
-  renderMarkers(canvas, map, selectedPoints.value)
+  rendererComposite(canvas, map, waterTime, {
+    showHeatmap: showHeatmap.value,
+    showLandmarks: showLandmarks.value,
+    path: drawnPath.length > 1 ? drawnPath : null,
+    markers: selectedPoints.value,
+  })
 }
 
-function redraw() { compositeFrame() }
+function redraw() { frame() }
+
+function onToggleHeatmap() {
+  // Build heatmap cache lazily — only runs once per world since prerenderHeatmap
+  // is cheap to call but we avoid it on every toggle-off
+  if (showHeatmap.value && map) prerenderHeatmap(canvasRef.value, map)
+  frame()
+}
 
 // ── Canvas ────────────────────────────────────────────────────────────────────
 
@@ -466,7 +481,14 @@ async function generateWorld(seed) {
 
   await nextTick()
   resizeCanvas()
-  compositeFrame()
+
+  // Pre-render all static layers once — animation loop blits these cheaply
+  prerenderTerrain(canvasRef.value, map)
+  prerenderLandmarks(canvasRef.value, map, landmarks.value)
+  invalidateHeatmap()
+  if (showHeatmap.value) prerenderHeatmap(canvasRef.value, map)
+
+  frame()
   isGenerating.value = false
   startWaterAnimation()
 }
@@ -565,7 +587,16 @@ async function copySeedLink() {
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
-function onResize() { resizeCanvas(); compositeFrame() }
+function onResize() {
+  resizeCanvas()
+  if (map) {
+    // Caches are pixel-resolution-dependent — rebuild after resize
+    prerenderTerrain(canvasRef.value, map)
+    prerenderLandmarks(canvasRef.value, map, landmarks.value)
+    invalidateHeatmap()
+  }
+  frame()
+}
 
 onMounted(async () => {
   window.addEventListener('resize', onResize)
