@@ -1,44 +1,72 @@
 import { TERRAIN } from './terrain.js'
 
 function terrainColor(cell) {
-  const t = cell.terrain
-  const h = cell.height
+  const { terrain: t, height: h, moisture: m = 0.5, temperature: temp = 0.5 } = cell
 
   switch (t.id) {
     case TERRAIN.DEEP_OCEAN.id: {
-      const v = Math.floor(15 + h * 40)
-      return [v + 5, v + 35, v + 85]
+      const v = Math.floor(12 + h * 35)
+      return [v + 3, v + 28, v + 80]
     }
     case TERRAIN.SHALLOW_WATER.id: {
-      const v = Math.floor(45 + h * 55)
-      return [v, v + 65, Math.min(255, v + 135)]
+      // Warmer water = more teal; colder = darker blue
+      const warmth = temp * 30
+      const v = Math.floor(40 + h * 50)
+      return [v, Math.floor(v + 55 + warmth), Math.min(255, v + 120)]
     }
     case TERRAIN.SHORE.id: {
-      const v = Math.floor(170 + h * 40)
-      return [v, Math.floor(v * 0.83), Math.floor(v * 0.52)]
+      // Wet shore = darker sand; dry = pale sand
+      const dryness = 1 - m
+      const r = Math.floor(160 + dryness * 50 + h * 20)
+      return [r, Math.floor(r * 0.82 + dryness * 10), Math.floor(r * 0.5)]
     }
     case TERRAIN.PLAINS.id: {
-      const g = Math.floor(100 + h * 90)
-      return [Math.floor(g * 0.55), g, Math.floor(g * 0.38)]
+      // Hot+dry = savanna yellow; cool+wet = lush green; temperate = mid green
+      if (temp > 0.65 && m < 0.45) {
+        // Savanna
+        const v = Math.floor(140 + h * 40)
+        return [v, Math.floor(v * 0.85), Math.floor(v * 0.25)]
+      }
+      if (temp < 0.3) {
+        // Tundra
+        const v = Math.floor(100 + h * 50)
+        return [Math.floor(v * 0.8), Math.floor(v * 0.85), Math.floor(v * 0.65)]
+      }
+      // Standard plains — moisture shifts green/yellow
+      const g = Math.floor(95 + m * 70 + h * 50)
+      return [Math.floor(g * (0.65 - m * 0.2)), g, Math.floor(g * (0.3 + m * 0.1))]
     }
     case TERRAIN.FOREST.id: {
-      const g = Math.floor(55 + h * 65)
+      if (temp > 0.6 && m > 0.65) {
+        // Tropical — deep lush green
+        const g = Math.floor(70 + h * 55)
+        return [Math.floor(g * 0.28), Math.floor(g * 1.1), Math.floor(g * 0.35)]
+      }
+      if (temp < 0.3) {
+        // Boreal / taiga — dark blue-green
+        const g = Math.floor(45 + h * 55)
+        return [Math.floor(g * 0.3), Math.floor(g * 0.85), Math.floor(g * 0.6)]
+      }
+      // Temperate forest
+      const g = Math.floor(55 + m * 40 + h * 40)
       return [Math.floor(g * 0.35), g, Math.floor(g * 0.28)]
     }
     case TERRAIN.MOUNTAIN.id: {
-      const v = Math.floor(75 + h * 90)
-      return [v, Math.floor(v * 0.87), Math.floor(v * 0.76)]
+      // Cold mountains more purple-grey; dry more reddish
+      const warm = temp * 20
+      const v = Math.floor(72 + h * 85)
+      return [v + Math.floor(warm), Math.floor(v * 0.86), Math.floor(v * 0.76 - warm * 0.5)]
     }
     case TERRAIN.SNOW.id: {
-      const v = Math.floor(195 + h * 60)
-      return [v, v, Math.min(255, v + 12)]
+      // Pure peaks — slight blue tint
+      const v = Math.floor(200 + h * 55)
+      return [v, v, Math.min(255, v + 15)]
     }
     default:
       return [120, 120, 120]
   }
 }
 
-// Returns logical width/height of canvas (accounting for DPR scaling)
 function logicalSize(canvas) {
   return {
     w: canvas._logicalW || canvas.width,
@@ -49,10 +77,7 @@ function logicalSize(canvas) {
 export function renderMap(canvas, map) {
   const rows = map.length
   const cols = map[0].length
-  const { w, h } = logicalSize(canvas)
   const ctx = canvas.getContext('2d')
-
-  // Render at native pixel resolution for sharpness
   const pw = canvas.width
   const ph = canvas.height
   const imageData = ctx.createImageData(pw, ph)
@@ -68,7 +93,6 @@ export function renderMap(canvas, map) {
     }
   }
 
-  // Save/restore transform so we don't fight the DPR scale
   ctx.save()
   ctx.setTransform(1, 0, 0, 1, 0, 0)
   ctx.putImageData(imageData, 0, 0)
@@ -116,7 +140,7 @@ export function renderLandmarks(canvas, map, landmarks) {
     ctx.fillRect(-3, -3, 6, 6)
     ctx.restore()
 
-    // Label
+    // Label pill
     ctx.font = '500 9.5px Inter, sans-serif'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'bottom'
@@ -126,9 +150,10 @@ export function renderLandmarks(canvas, map, landmarks) {
     const lx = px - lw / 2
     const ly = py - 14
 
-    ctx.fillStyle = 'rgba(0,0,0,0.55)'
+    ctx.fillStyle = 'rgba(0,0,0,0.58)'
     ctx.beginPath()
-    ctx.roundRect(lx, ly, lw, lh, 2)
+    if (ctx.roundRect) ctx.roundRect(lx, ly, lw, lh, 2)
+    else ctx.rect(lx, ly, lw, lh)
     ctx.fill()
 
     ctx.fillStyle = 'rgba(255,255,255,0.92)'
@@ -153,7 +178,7 @@ export function renderMarkers(canvas, map, points) {
     const py = (y + 0.5) * ch
     const color = i === 0 ? '#22d3ee' : '#f97316'
 
-    // Outer ring pulse
+    // Outer ring
     ctx.beginPath()
     ctx.arc(px, py, 12, 0, Math.PI * 2)
     ctx.fillStyle = `${color}22`
@@ -164,11 +189,10 @@ export function renderMarkers(canvas, map, points) {
     ctx.arc(px, py, 7, 0, Math.PI * 2)
     ctx.fillStyle = color
     ctx.fill()
-    ctx.strokeStyle = '#fff'
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)'
     ctx.lineWidth = 1.5
     ctx.stroke()
 
-    // Label
     ctx.font = 'bold 8px Inter, sans-serif'
     ctx.fillStyle = '#fff'
     ctx.textAlign = 'center'
