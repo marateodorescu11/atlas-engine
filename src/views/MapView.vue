@@ -31,8 +31,8 @@
 
       <!-- Right controls -->
       <div class="flex items-center gap-2 shrink-0">
-        <!-- Seed -->
-        <div class="flex items-center gap-1.5 h-7 px-2.5 rounded bg-white/5 border border-white/[0.06] text-xs font-mono">
+        <!-- Seed (hidden on small screens — accessible via world name pill copy) -->
+        <div class="hidden sm:flex items-center gap-1.5 h-7 px-2.5 rounded bg-white/5 border border-white/[0.06] text-xs font-mono">
           <span class="text-amber-400 tracking-wider tabular-nums">{{ seedDecimal }}</span>
           <button @click="copySeedLink" class="text-stone-600 hover:text-stone-300 transition-colors" title="Copy link">
             <CopyIcon class="w-3 h-3" />
@@ -51,16 +51,17 @@
         <button
           @click="exportPNG"
           :disabled="isGenerating"
-          class="flex items-center gap-1.5 h-7 px-3 rounded bg-white/5 hover:bg-white/10 border border-white/[0.06] disabled:opacity-40 text-stone-300 text-xs font-medium tracking-wide transition-all active:scale-[0.97]"
+          class="hidden sm:flex items-center gap-1.5 h-7 px-3 rounded bg-white/5 hover:bg-white/10 border border-white/[0.06] disabled:opacity-40 text-stone-300 text-xs font-medium tracking-wide transition-all active:scale-[0.97]"
         >
           <DownloadIcon class="w-3.5 h-3.5" />
           <span class="hidden sm:inline">Export PNG</span>
         </button>
 
-        <!-- Mobile sidebar toggle -->
+        <!-- Mobile panel toggle (hidden on desktop) -->
         <button
           @click="sidebarOpen = !sidebarOpen"
-          class="lg:hidden flex items-center justify-center w-7 h-7 rounded bg-white/5 border border-white/[0.06] text-stone-400"
+          class="lg:hidden flex items-center justify-center w-7 h-7 rounded bg-white/5 border border-white/[0.06] text-stone-400 active:bg-white/10 transition-colors"
+          :aria-label="sidebarOpen ? 'Close panel' : 'Open panel'"
         >
           <PanelIcon class="w-4 h-4" />
         </button>
@@ -68,7 +69,7 @@
     </header>
 
     <!-- ── Body ── -->
-    <div class="flex flex-1 overflow-hidden relative">
+    <div class="flex flex-1 overflow-hidden relative min-h-0">
 
       <!-- ── Map canvas ── -->
       <div class="relative flex-1 overflow-hidden bg-black">
@@ -122,7 +123,7 @@
         <Transition name="slide-bottom">
           <div
             v-if="!isGenerating && selectedPoints.length < 2 && !routeStats"
-            class="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2 h-8 px-5 rounded-full bg-black/70 backdrop-blur-md border border-white/10 text-xs text-stone-400 pointer-events-none"
+            class="absolute bottom-16 lg:bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2 h-8 px-5 rounded-full bg-black/70 backdrop-blur-md border border-white/10 text-xs text-stone-400 pointer-events-none"
           >
             <span v-if="selectedPoints.length === 0">Click to set <span class="text-cyan-400 font-semibold">origin</span></span>
             <span v-else>Click to set <span class="text-orange-400 font-semibold">destination</span></span>
@@ -142,16 +143,54 @@
             No route found — destination unreachable
           </div>
         </Transition>
+
+        <!-- FAB — mobile only, opens bottom sheet -->
+        <button
+          @click="sidebarOpen = true"
+          class="lg:hidden absolute bottom-5 right-4 flex items-center gap-2 h-9 px-4 rounded-full bg-[#0f0f12]/95 border border-white/10 text-stone-300 text-xs font-medium shadow-lg active:scale-95 transition-transform z-10"
+        >
+          <PanelIcon class="w-3.5 h-3.5" />
+          <span>Map Controls</span>
+        </button>
       </div>
 
-      <!-- ── Sidebar ── -->
+      <!-- ── Sidebar — right panel on desktop, bottom sheet on mobile ── -->
       <aside
-        class="shrink-0 border-l border-white/[0.06] bg-[#0f0f12] flex flex-col overflow-y-auto z-10
-               transition-all duration-300
-               lg:relative lg:translate-x-0 lg:w-[280px]
-               absolute right-0 top-0 bottom-0 w-[280px]"
-        :class="sidebarOpen ? 'translate-x-0 shadow-2xl' : 'translate-x-full lg:translate-x-0'"
+        class="bg-[#0f0f12] flex flex-col z-30 transition-transform duration-300 ease-out
+               lg:relative lg:shrink-0 lg:w-[280px] lg:border-l lg:border-white/[0.06] lg:translate-y-0 lg:translate-x-0 lg:rounded-none lg:shadow-none lg:overflow-y-auto
+               fixed bottom-0 left-0 right-0 max-h-[72vh] rounded-t-2xl border-t border-white/[0.08] overflow-y-auto shadow-2xl"
+        :class="sidebarOpen ? 'translate-y-0' : 'translate-y-full lg:translate-y-0'"
       >
+        <!-- Bottom-sheet drag handle (mobile only) -->
+        <div class="lg:hidden flex flex-col items-center pt-2.5 pb-1 shrink-0 sticky top-0 bg-[#0f0f12] z-10">
+          <div class="w-8 h-1 rounded-full bg-white/20" />
+          <div class="flex items-center justify-between w-full px-4 mt-2">
+            <span class="text-[9px] font-semibold uppercase tracking-[0.2em] text-stone-600">Controls</span>
+            <button @click="sidebarOpen = false" class="text-stone-600 hover:text-stone-300 transition-colors p-1">
+              <CloseIcon class="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+        <!-- Mobile-only quick actions inside sheet -->
+        <div class="lg:hidden flex items-center gap-2 px-4 py-3 border-b border-white/[0.06]">
+          <button
+            @click="generateWorld()"
+            :disabled="isGenerating"
+            class="flex-1 flex items-center justify-center gap-1.5 h-8 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-semibold transition-all"
+          >
+            <RefreshIcon class="w-3.5 h-3.5" :class="{ 'animate-spin': isGenerating }" />
+            New World
+          </button>
+          <button
+            @click="exportPNG"
+            :disabled="isGenerating"
+            class="flex-1 flex items-center justify-center gap-1.5 h-8 rounded bg-white/5 border border-white/[0.06] disabled:opacity-40 text-stone-300 text-xs font-medium transition-all"
+          >
+            <DownloadIcon class="w-3.5 h-3.5" />
+            Export PNG
+          </button>
+        </div>
+
         <!-- Overlays -->
         <CollapsibleSection title="Overlays" :open="sections.overlays" @toggle="sections.overlays = !sections.overlays">
           <label class="flex items-center gap-2.5 py-1 cursor-pointer group">
@@ -279,18 +318,20 @@
         </CollapsibleSection>
       </aside>
 
-      <!-- Mobile sidebar backdrop -->
-      <div
-        v-if="sidebarOpen"
-        class="lg:hidden absolute inset-0 bg-black/50 z-[9]"
-        @click="sidebarOpen = false"
-      />
+      <!-- Mobile bottom-sheet backdrop -->
+      <Transition name="fade">
+        <div
+          v-if="sidebarOpen"
+          class="lg:hidden fixed inset-0 bg-black/60 z-20 backdrop-blur-[2px]"
+          @click="sidebarOpen = false"
+        />
+      </Transition>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, nextTick, defineComponent, h } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick, defineComponent, h } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { generateHeightmap, TERRAIN } from '../engine/terrain.js'
 import { findPath } from '../engine/pathfinder.js'
@@ -315,6 +356,7 @@ const CopyIcon = defineComponent({ render: () => h('svg', { viewBox: '0 0 24 24'
 const DownloadIcon = defineComponent({ render: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', class: 'inline-block' }, [h('path', { d: 'M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4' }), h('polyline', { points: '7 10 12 15 17 10' }), h('line', { x1: '12', y1: '15', x2: '12', y2: '3' })]) })
 const CheckIcon = defineComponent({ render: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2.5', 'stroke-linecap': 'round', class: 'inline-block' }, [h('path', { d: 'M5 13l4 4L19 7' })]) })
 const PanelIcon = defineComponent({ render: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', class: 'inline-block' }, [h('rect', { x: '3', y: '3', width: '18', height: '18', rx: '2' }), h('line', { x1: '15', y1: '3', x2: '15', y2: '21' })]) })
+const CloseIcon = defineComponent({ render: () => h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', class: 'inline-block' }, [h('path', { d: 'M18 6L6 18M6 6l12 12' })]) })
 const ChevronIcon = defineComponent({ props: ['open'], render(props) { return h('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', class: `inline-block transition-transform duration-200 ${props.open ? '' : '-rotate-90'}` }, [h('path', { d: 'M6 9l6 6 6-6' })]) } })
 
 const Checkbox = defineComponent({
@@ -587,6 +629,10 @@ async function copySeedLink() {
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 
+watch(sidebarOpen, (open) => {
+  document.body.classList.toggle('sheet-open', open)
+})
+
 function onResize() {
   resizeCanvas()
   if (map) {
@@ -624,4 +670,7 @@ onUnmounted(() => {
   opacity: 0;
   transform: translateX(-50%) translateY(6px);
 }
+
+/* Prevent body scroll when bottom sheet is open on mobile */
+:global(body.sheet-open) { overflow: hidden; }
 </style>
