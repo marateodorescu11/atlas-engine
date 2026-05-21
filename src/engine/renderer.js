@@ -46,6 +46,10 @@ function terrainRGB(cell, time = 0) {
       const g = Math.floor(52 + m * 42 + h * 42)
       return [Math.floor(g * 0.35), g, Math.floor(g * 0.28)]
     }
+    case TERRAIN.HILLS.id: {
+      const v = Math.floor(95 + h * 55)
+      return [Math.floor(v * 0.78), Math.floor(v * 0.70), Math.floor(v * 0.54)]
+    }
     case TERRAIN.MOUNTAIN.id: {
       const warm = temp * 20
       const v = Math.floor(70 + h * 88)
