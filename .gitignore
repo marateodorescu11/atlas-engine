@@ -1,16 +1,29 @@
-# Compiled class file
-*.class
+# Node
+node_modules/
+dist/
+dist-ssr/
+*.local
 
-# Log file
+# Logs
+logs/
 *.log
+npm-debug.log*
 
-# BlueJ files
-*.ctxt
+# Editor
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
+# OS
+.DS_Store
+Thumbs.db
 
-# Package Files #
+# Java
+*.class
 *.jar
 *.war
 *.nar
@@ -18,7 +31,5 @@
 *.zip
 *.tar.gz
 *.rar
-
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
