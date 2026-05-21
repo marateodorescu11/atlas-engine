@@ -9,6 +9,12 @@
           <span class="font-display text-base font-semibold tracking-widest text-stone-100">ATLAS ENGINE</span>
           <span class="ml-3 text-[10px] text-stone-600 tracking-widest uppercase">Procedural World Generator</span>
         </div>
+        <Transition name="fade">
+          <div v-if="worldName" class="ml-4 flex items-center gap-2 h-8 px-3 rounded-md bg-emerald-950/40 border border-emerald-900/50">
+            <span class="text-[10px] text-emerald-800 uppercase tracking-widest">World</span>
+            <span class="font-display text-sm text-emerald-400 tracking-wide">{{ worldName }}</span>
+          </div>
+        </Transition>
       </div>
 
       <div class="flex items-center gap-2">
@@ -211,6 +217,7 @@ import { generateHeightmap, TERRAIN } from '../engine/terrain.js'
 import { findPath } from '../engine/pathfinder.js'
 import { generateLandmarks } from '../engine/landmarks.js'
 import { randomSeed } from '../engine/rng.js'
+import { generateWorldName } from '../engine/worldname.js'
 import { renderMap, renderHeatmap, renderLandmarks, renderMarkers } from '../engine/renderer.js'
 
 // ── Inline micro-components ───────────────────────────────────────────────────
@@ -310,6 +317,7 @@ const routePath = ref(null)
 const routeInfo = ref(null)
 const noPathFound = ref(false)
 const landmarks = ref([])
+const worldName = ref('')
 
 let map = null
 let currentSeed = 0
@@ -329,6 +337,7 @@ async function generateWorld(seed) {
   currentSeed = seed !== undefined ? seed : randomSeed()
   map = generateHeightmap(MAP_COLS, MAP_ROWS, currentSeed)
   landmarks.value = generateLandmarks(map, currentSeed)
+  worldName.value = generateWorldName(currentSeed)
 
   router.replace({ query: { seed: currentSeed.toString(16) } })
 
