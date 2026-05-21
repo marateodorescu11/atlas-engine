@@ -1,0 +1,2 @@
+# atlas-engine
+I need a 300 letters description  2:05 PM Atlas Engine is a browser-based procedural world generator and pathfinder. It creates unique terrains: oceans, plains, mountains, and snowy peaks, from mathematical noise, then calculates the most efficient terrain-aware route between any two points. Every world is different. Every route is earned.
