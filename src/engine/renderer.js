@@ -1,71 +1,93 @@
 import { TERRAIN } from './terrain.js'
 
-function terrainColor(cell) {
+// ── Color helpers ─────────────────────────────────────────────────────────────
+
+function terrainRGB(cell, time = 0) {
   const { terrain: t, height: h, moisture: m = 0.5, temperature: temp = 0.5 } = cell
 
   switch (t.id) {
     case TERRAIN.DEEP_OCEAN.id: {
-      const v = Math.floor(12 + h * 35)
-      return [v + 3, v + 28, v + 80]
+      const wave = Math.sin(time * 0.0008 + h * 12) * 6
+      const v = Math.floor(12 + h * 35 + wave)
+      return [v + 3, v + 28, Math.min(255, v + 82)]
     }
     case TERRAIN.SHALLOW_WATER.id: {
-      // Warmer water = more teal; colder = darker blue
-      const warmth = temp * 30
-      const v = Math.floor(40 + h * 50)
+      const wave = Math.sin(time * 0.001 + h * 8) * 5
+      const warmth = temp * 28
+      const v = Math.floor(40 + h * 50 + wave)
       return [v, Math.floor(v + 55 + warmth), Math.min(255, v + 120)]
     }
     case TERRAIN.SHORE.id: {
-      // Wet shore = darker sand; dry = pale sand
       const dryness = 1 - m
-      const r = Math.floor(160 + dryness * 50 + h * 20)
+      const r = Math.floor(158 + dryness * 52 + h * 22)
       return [r, Math.floor(r * 0.82 + dryness * 10), Math.floor(r * 0.5)]
     }
     case TERRAIN.PLAINS.id: {
-      // Hot+dry = savanna yellow; cool+wet = lush green; temperate = mid green
       if (temp > 0.65 && m < 0.45) {
-        // Savanna
-        const v = Math.floor(140 + h * 40)
-        return [v, Math.floor(v * 0.85), Math.floor(v * 0.25)]
+        const v = Math.floor(138 + h * 42)
+        return [v, Math.floor(v * 0.85), Math.floor(v * 0.24)]
       }
       if (temp < 0.3) {
-        // Tundra
-        const v = Math.floor(100 + h * 50)
-        return [Math.floor(v * 0.8), Math.floor(v * 0.85), Math.floor(v * 0.65)]
+        const v = Math.floor(98 + h * 52)
+        return [Math.floor(v * 0.78), Math.floor(v * 0.85), Math.floor(v * 0.64)]
       }
-      // Standard plains — moisture shifts green/yellow
-      const g = Math.floor(95 + m * 70 + h * 50)
-      return [Math.floor(g * (0.65 - m * 0.2)), g, Math.floor(g * (0.3 + m * 0.1))]
+      const g = Math.floor(92 + m * 72 + h * 52)
+      return [Math.floor(g * (0.64 - m * 0.2)), g, Math.floor(g * (0.3 + m * 0.1))]
     }
     case TERRAIN.FOREST.id: {
       if (temp > 0.6 && m > 0.65) {
-        // Tropical — deep lush green
-        const g = Math.floor(70 + h * 55)
+        const g = Math.floor(68 + h * 56)
         return [Math.floor(g * 0.28), Math.floor(g * 1.1), Math.floor(g * 0.35)]
       }
       if (temp < 0.3) {
-        // Boreal / taiga — dark blue-green
-        const g = Math.floor(45 + h * 55)
+        const g = Math.floor(42 + h * 56)
         return [Math.floor(g * 0.3), Math.floor(g * 0.85), Math.floor(g * 0.6)]
       }
-      // Temperate forest
-      const g = Math.floor(55 + m * 40 + h * 40)
+      const g = Math.floor(52 + m * 42 + h * 42)
       return [Math.floor(g * 0.35), g, Math.floor(g * 0.28)]
     }
     case TERRAIN.MOUNTAIN.id: {
-      // Cold mountains more purple-grey; dry more reddish
       const warm = temp * 20
-      const v = Math.floor(72 + h * 85)
-      return [v + Math.floor(warm), Math.floor(v * 0.86), Math.floor(v * 0.76 - warm * 0.5)]
+      const v = Math.floor(70 + h * 88)
+      return [v + Math.floor(warm), Math.floor(v * 0.86), Math.floor(v * 0.75 - warm * 0.5)]
     }
     case TERRAIN.SNOW.id: {
-      // Pure peaks — slight blue tint
-      const v = Math.floor(200 + h * 55)
-      return [v, v, Math.min(255, v + 15)]
+      const v = Math.floor(198 + h * 57)
+      return [v, v, Math.min(255, v + 16)]
     }
     default:
       return [120, 120, 120]
   }
 }
+
+// Bilinear interpolate between two RGB triples
+function lerpRGB(a, b, t) {
+  return [
+    Math.round(a[0] + (b[0] - a[0]) * t),
+    Math.round(a[1] + (b[1] - a[1]) * t),
+    Math.round(a[2] + (b[2] - a[2]) * t),
+  ]
+}
+
+function bilinearCell(map, fx, fy, rows, cols, time) {
+  const x0 = Math.max(0, Math.min(cols - 1, Math.floor(fx)))
+  const y0 = Math.max(0, Math.min(rows - 1, Math.floor(fy)))
+  const x1 = Math.min(cols - 1, x0 + 1)
+  const y1 = Math.min(rows - 1, y0 + 1)
+  const tx = fx - x0
+  const ty = fy - y0
+
+  const c00 = terrainRGB(map[y0][x0], time)
+  const c10 = terrainRGB(map[y0][x1], time)
+  const c01 = terrainRGB(map[y1][x0], time)
+  const c11 = terrainRGB(map[y1][x1], time)
+
+  const top = lerpRGB(c00, c10, tx)
+  const bot = lerpRGB(c01, c11, tx)
+  return lerpRGB(top, bot, ty)
+}
+
+// ── Canvas helpers ────────────────────────────────────────────────────────────
 
 function logicalSize(canvas) {
   return {
@@ -74,7 +96,15 @@ function logicalSize(canvas) {
   }
 }
 
-export function renderMap(canvas, map) {
+// ── Public render functions ───────────────────────────────────────────────────
+
+/**
+ * Render the terrain map to the canvas.
+ * @param {HTMLCanvasElement} canvas
+ * @param {Array} map
+ * @param {number} time  - milliseconds, used for water animation
+ */
+export function renderMap(canvas, map, time = 0) {
   const rows = map.length
   const cols = map[0].length
   const ctx = canvas.getContext('2d')
@@ -83,11 +113,28 @@ export function renderMap(canvas, map) {
   const imageData = ctx.createImageData(pw, ph)
   const data = imageData.data
 
+  // Only water tiles need bilinear blending — others use fast nearest-neighbor
   for (let py = 0; py < ph; py++) {
     for (let px = 0; px < pw; px++) {
-      const mx = Math.min(cols - 1, Math.floor((px / pw) * cols))
-      const my = Math.min(rows - 1, Math.floor((py / ph) * rows))
-      const [r, g, b] = terrainColor(map[my][mx])
+      const fx = (px / pw) * cols
+      const fy = (py / ph) * rows
+      const mx = Math.min(cols - 1, Math.floor(fx))
+      const my = Math.min(rows - 1, Math.floor(fy))
+      const cell = map[my][mx]
+      const tid = cell.terrain.id
+
+      let r, g, b
+      if (
+        tid === TERRAIN.DEEP_OCEAN.id ||
+        tid === TERRAIN.SHALLOW_WATER.id ||
+        tid === TERRAIN.SHORE.id
+      ) {
+        // Bilinear for smooth coastlines + animated water
+        ;[r, g, b] = bilinearCell(map, fx, fy, rows, cols, time)
+      } else {
+        ;[r, g, b] = terrainRGB(cell, time)
+      }
+
       const i = (py * pw + px) * 4
       data[i] = r; data[i + 1] = g; data[i + 2] = b; data[i + 3] = 255
     }
@@ -132,7 +179,6 @@ export function renderLandmarks(canvas, map, landmarks) {
     const px = (lm.x + 0.5) * cw
     const py = (lm.y + 0.5) * ch
 
-    // Diamond marker
     ctx.save()
     ctx.translate(px, py - 2)
     ctx.rotate(Math.PI / 4)
@@ -140,7 +186,6 @@ export function renderLandmarks(canvas, map, landmarks) {
     ctx.fillRect(-3, -3, 6, 6)
     ctx.restore()
 
-    // Label pill
     ctx.font = '500 9.5px Inter, sans-serif'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'bottom'
@@ -178,13 +223,11 @@ export function renderMarkers(canvas, map, points) {
     const py = (y + 0.5) * ch
     const color = i === 0 ? '#22d3ee' : '#f97316'
 
-    // Outer ring
     ctx.beginPath()
     ctx.arc(px, py, 12, 0, Math.PI * 2)
     ctx.fillStyle = `${color}22`
     ctx.fill()
 
-    // Main dot
     ctx.beginPath()
     ctx.arc(px, py, 7, 0, Math.PI * 2)
     ctx.fillStyle = color
@@ -199,5 +242,33 @@ export function renderMarkers(canvas, map, points) {
     ctx.textBaseline = 'middle'
     ctx.fillText(i === 0 ? 'A' : 'B', px, py)
   }
+  ctx.restore()
+}
+
+export function renderPath(canvas, map, path) {
+  if (!path?.length || !map) return
+  const rows = map.length
+  const cols = map[0].length
+  const { w, h } = logicalSize(canvas)
+  const ctx = canvas.getContext('2d')
+  const cw = w / cols
+  const ch = h / rows
+
+  ctx.save()
+  ctx.strokeStyle = 'rgba(249, 115, 22, 0.28)'
+  ctx.lineWidth = 9
+  ctx.lineJoin = 'round'
+  ctx.lineCap = 'round'
+  ctx.beginPath()
+  ctx.moveTo((path[0].x + 0.5) * cw, (path[0].y + 0.5) * ch)
+  for (let i = 1; i < path.length; i++) ctx.lineTo((path[i].x + 0.5) * cw, (path[i].y + 0.5) * ch)
+  ctx.stroke()
+
+  ctx.strokeStyle = '#f97316'
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.moveTo((path[0].x + 0.5) * cw, (path[0].y + 0.5) * ch)
+  for (let i = 1; i < path.length; i++) ctx.lineTo((path[i].x + 0.5) * cw, (path[i].y + 0.5) * ch)
+  ctx.stroke()
   ctx.restore()
 }
